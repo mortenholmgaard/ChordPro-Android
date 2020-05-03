@@ -64,6 +64,8 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
     // Center cords over the next letter
     // Font size scaling for any size
     // TextView contentsize matches its real size
+    // support lines without chords
+    // enabled/disable chords
     private fun buildDrawModel(): List<DrawModel> {
         val drawModels = mutableListOf<DrawModel>()
 
@@ -74,7 +76,6 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         val lineHeight = 28f.dpToPx
         var x = 0f
         var y = lineHeight + 5.dpToPx
-        val spaceWidth = textSize / 4
 
         for (textPart in textParts) {
             var hasPassedNewLine = false
@@ -85,8 +86,15 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
                     x = 0f
                 }
 
-                for (word in textPartWithoutNewLines.split(" ")) {
-                    super.getPaint().getTextBounds(word, 0, word.length, textBounds)
+                val words = textPartWithoutNewLines.split(" ")
+                for (word in words) {
+
+                    val shouldPostfixSpace = true // !nextIsChord && words.count() - 2 == i && words.last().isEmpty()
+                    val shouldPrefixSpace = !nextIsChord && drawModels.lastOrNull()?.isChord == false
+                    Log.d("ChordPro", "\"${if (shouldPrefixSpace) " " else ""}$word${if (shouldPostfixSpace) " " else ""}\"")
+
+                    val wordWithPrefix = "${if (shouldPrefixSpace) " " else ""}$word${if (shouldPostfixSpace) " " else ""}"
+                    super.getPaint().getTextBounds(wordWithPrefix, 0, wordWithPrefix.length, textBounds)
 
                     if (textBounds.width() + x > super.getWidth()) {
                         y += lineHeight * 2
@@ -94,12 +102,11 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
                     }
 
                     if (nextIsChord) {
-                        drawModels.add(DrawModel(true, word, x, y + lineHeight * 0.5f - lineHeight, chordPaint))
+                        drawModels.add(DrawModel(true, wordWithPrefix, x, y + lineHeight * 0.5f - lineHeight, chordPaint))
                     } else {
-                        if (x > 0 && drawModels.lastOrNull()?.isChord == false) {
-                            x += spaceWidth
-                        }
-                        drawModels.add(DrawModel(false, word, x, y + lineHeight * 0.5f, textPaint))
+                        drawModels.add(DrawModel(false,
+                            if (shouldPrefixSpace && x == 0f) wordWithPrefix.removeRange(0, 1) else wordWithPrefix,
+                            x, y + lineHeight * 0.5f, textPaint))
                         x += textBounds.right
                     }
                 }
