@@ -58,9 +58,8 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
     }
 
     // TODO remaining problems:
-    // new line with just the chord for the word sitting on the end. (ex. [Am]nights)
     // New line with words containing a chord. (kn[C]ow)
-    // TODO fix the 2 above problems with writing the spaces in stead of just added offset to them. Then it is possible and go back and look for spaces(and newlines)
+    // [F#m]Close starts with a space but should not.
     // Center cords over the next letter
     // Font size scaling for any size
     // TextView contentsize matches its real size
@@ -71,54 +70,100 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
 
         val startsWithChord = text.startsWith("[")
         val textParts = text.split("[", "]")
-        var nextIsChord = startsWithChord
 
         val lineHeight = 28f.dpToPx
-        var x = 0f
-        var y = lineHeight + 5.dpToPx
+        val drawingModel = BuildingDrawModel(startsWithChord, 0f, lineHeight + 5.dpToPx, lineHeight, calcSpaceWidth())
 
         for (textPart in textParts) {
             var hasPassedNewLine = false
 
             for (textPartWithoutNewLines in textPart.split("\n")) {
                 if (hasPassedNewLine) {
-                    y += lineHeight * 2
-                    x = 0f
+                    moveToNextLine(drawingModel)
                 }
 
                 val words = textPartWithoutNewLines.split(" ")
-                for (word in words) {
+                for ((i, word) in words.withIndex()) {
+                    if (word.isEmpty() && i > 0) {
+                        continue
+                    }
 
-                    val shouldPostfixSpace = true // !nextIsChord && words.count() - 2 == i && words.last().isEmpty()
-                    val shouldPrefixSpace = !nextIsChord && drawModels.lastOrNull()?.isChord == false
-                    Log.d("ChordPro", "\"${if (shouldPrefixSpace) " " else ""}$word${if (shouldPostfixSpace) " " else ""}\"")
-
+                    // TODO Prefixed spaces is not calculated correctly regrading the width.  && i > 0 is not the full fix or at all a part of it.
+                    val shouldPostfixSpace = !drawingModel.nextIsChord && words.count() - 2 == i && words.last().isEmpty()
+                    val shouldPrefixSpace = !drawingModel.nextIsChord && drawModels.lastOrNull()?.isChord == false
                     val wordWithPrefix = "${if (shouldPrefixSpace) " " else ""}$word${if (shouldPostfixSpace) " " else ""}"
-                    super.getPaint().getTextBounds(wordWithPrefix, 0, wordWithPrefix.length, textBounds)
+                    Log.d("ChordPro", "\"${wordWithPrefix}\"")
 
-                    if (textBounds.width() + x > super.getWidth()) {
-                        y += lineHeight * 2
-                        x = 0f
+                    if (textWidth(wordWithPrefix, drawingModel.spaceWidth) + drawingModel.x > super.getWidth()) {
+                        moveToNextLine(drawingModel)
+                        ensureWordsOrCordsIsNotBrokenUp(drawingModel, drawModels)
                     }
 
-                    if (nextIsChord) {
-                        drawModels.add(DrawModel(true, wordWithPrefix, x, y + lineHeight * 0.5f - lineHeight, chordPaint))
-                    } else {
-                        drawModels.add(DrawModel(false,
-                            if (shouldPrefixSpace && x == 0f) wordWithPrefix.removeRange(0, 1) else wordWithPrefix,
-                            x, y + lineHeight * 0.5f, textPaint))
-                        x += textBounds.right
-                    }
+                    drawText(drawModels, wordWithPrefix, drawingModel, shouldPrefixSpace)
                 }
 
                 hasPassedNewLine = true
             }
 
-            nextIsChord = !nextIsChord
+            drawingModel.nextIsChord = !drawingModel.nextIsChord
         }
 
         return drawModels
     }
 
+    private fun calcSpaceWidth(): Int {
+        return textWidth("x x", 0) - textWidth("x", 0) * 2 // leading/trailing spaces is not take into account https://stackoverflow.com/a/10729081/860488
+    }
+
+    private fun ensureWordsOrCordsIsNotBrokenUp(drawingModel: BuildingDrawModel, drawModels: MutableList<DrawModel>) {
+        if (!drawingModel.nextIsChord) { // || !drawModels.last().text.endsWith(" ")
+            if (drawModels.last().isChord) {
+                val elementsToMoveToNextLine = drawModels.reversed().takeWhile { it.isChord || !it.text.endsWith(" ") }.reversed()
+                for (drawModel in elementsToMoveToNextLine) {
+                    drawModels.remove(drawModel)
+                    drawingModel.nextIsChord = drawModel.isChord
+                    drawText(drawModels, drawModel.text, drawingModel, false)
+                }
+            }
+
+            drawingModel.nextIsChord = false
+        }
+    }
+
+    private fun drawText(drawModels: MutableList<DrawModel>, word: String, drawingModel: BuildingDrawModel, shouldPrefixSpace: Boolean) {
+        val x = drawingModel.x
+        val y = drawingModel.y
+        val lineHeight = drawingModel.lineHeight
+
+        if (drawingModel.nextIsChord) {
+            drawModels.add(DrawModel(true, word, x, y + lineHeight * 0.5f - lineHeight, chordPaint))
+        } else {
+            val textRight = textRight(word, drawingModel.spaceWidth)
+
+            @Suppress("NAME_SHADOWING")
+            val word = if (shouldPrefixSpace && x == 0f) word.removeRange(0, 1) else word
+            drawModels.add(DrawModel(false, word, x, y + lineHeight * 0.5f, textPaint))
+            drawingModel.x += textRight
+        }
+    }
+
+    private fun moveToNextLine(drawingModel: BuildingDrawModel) {
+        drawingModel.y += drawingModel.lineHeight * 2
+        drawingModel.x = 0f
+    }
+
+    private fun textWidth(text: String, spaceWidth: Int): Int {
+        super.getPaint().getTextBounds(text, 0, text.length, textBounds)
+        val trailingSpaceWidth = if (text.endsWith(" ")) spaceWidth else 0
+        return textBounds.width() + trailingSpaceWidth
+    }
+
+    private fun textRight(text: String, spaceWidth: Int): Int {
+        super.getPaint().getTextBounds(text, 0, text.length, textBounds)
+        val trailingSpaceWidth = if (text.endsWith(" ")) spaceWidth else 0
+        return textBounds.right + trailingSpaceWidth
+    }
+
     data class DrawModel(val isChord: Boolean, val text: String, val x: Float, val y: Float, val paint: Paint)
+    data class BuildingDrawModel(var nextIsChord: Boolean, var x: Float, var y: Float, val lineHeight: Float, val spaceWidth: Int)
 }
