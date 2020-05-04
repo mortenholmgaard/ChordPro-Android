@@ -10,9 +10,12 @@ import androidx.core.content.ContextCompat
 
 // Inspiration: https://stackoverflow.com/questions/4342927/how-to-correctly-draw-text-in-an-extended-class-for-textview
 class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
+    var hideChords = false
+
     private val chordPaint = Paint()
     private val textPaint = Paint()
     private val textBounds = Rect()
+    private val hideChordsRegex = Regex("\\[(?:[^\\]])*\\]*\\s*")
 
     constructor(context: Context?) : super(context) {
         setupPaint()
@@ -29,21 +32,20 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
     }
 
     private fun setupAttributes(context: Context, attrs: AttributeSet?) {
-//        mOutlineColor = ContextCompat.getColor(context, com.chordpro.R.color.red)
-
-        // Force this text label to be centered
-//        super.setGravity(Gravity.CENTER_HORIZONTAL)
+        val array = context.obtainStyledAttributes(attrs, R.styleable.ChordProTextView)
+        chordPaint.color = array.getColor(R.styleable.ChordProTextView_chordColor, currentTextColor)
+        hideChords = array.getBoolean(R.styleable.ChordProTextView_hideChords, false)
+        array.recycle()
     }
 
     private fun setupPaint() {
-        chordPaint.color = ContextCompat.getColor(context, R.color.blue)
         chordPaint.strokeWidth = textSize
         chordPaint.textSize = textSize
         chordPaint.flags = paintFlags
         chordPaint.typeface = typeface
         chordPaint.isAntiAlias = true
 
-        textPaint.color = ContextCompat.getColor(context, R.color.black)
+        textPaint.color = currentTextColor
         textPaint.strokeWidth = textSize
         textPaint.textSize = textSize
         textPaint.flags = paintFlags
@@ -52,9 +54,19 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
     }
 
     override fun onDraw(canvas: Canvas) {
-        for (drawModel in buildDrawModel()) {
-            Log.d("ChordPro", "Draw: \"${drawModel.text}\"")
-            canvas.drawText(drawModel.text, drawModel.x, drawModel.y, drawModel.paint)
+        if (hideChords) {
+            setLineSpacing(0f, 1f)
+            val text = text
+            setText(text.replace(hideChordsRegex, ""))
+            super.onDraw(canvas)
+            setText(text)
+        } else {
+            setLineSpacing(0f, 2f)
+
+            for (drawModel in buildDrawModel()) {
+                Log.d("ChordPro", "Draw: \"${drawModel.text}\"")
+                canvas.drawText(drawModel.text, drawModel.x, drawModel.y, drawModel.paint)
+            }
         }
     }
 
@@ -63,7 +75,6 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
     // Font size scaling for any size
     // TextView contentsize matches its real size
     // support lines without chords
-    // enabled/disable chords
     private fun buildDrawModel(): List<DrawModel> {
         val drawModels = mutableListOf<DrawModel>()
 
