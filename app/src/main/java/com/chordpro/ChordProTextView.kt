@@ -172,7 +172,7 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         if (drawingModel.nextIsChord) {
             drawModels.add(DrawModel(true, word, x, y + lineHeight * 0.5f - lineHeight, chordPaint))
         } else {
-            val textRight = textRight(word, drawingModel.spaceWidth)
+            val textRight = textWidth(word, drawingModel.spaceWidth)
 
             drawModels.add(DrawModel(false, word, x, y + lineHeight * 0.5f, textPaint))
             drawingModel.x += textRight
@@ -186,15 +186,8 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
 
     private fun textWidth(text: String, spaceWidth: Int): Int {
         super.getPaint().getTextBounds(text, 0, text.length, textBounds)
-        var extraSpaceWidth = if (text.endsWith(" ")) spaceWidth else 0
-        extraSpaceWidth += if (text.startsWith(" ")) spaceWidth else 0
-        return textBounds.width() + extraSpaceWidth
-    }
-
-    private fun textRight(text: String, spaceWidth: Int): Int {
-        super.getPaint().getTextBounds(text, 0, text.length, textBounds)
-        val trailingSpaceWidth = if (text.endsWith(" ")) spaceWidth else 0
-        return textBounds.right + trailingSpaceWidth
+        val extraSpaceWidth = if (text.endsWith(" ")) spaceWidth else 0
+        return textBounds.width() + extraSpaceWidth + textBounds.left
     }
 
     data class DrawModel(val isChord: Boolean, val text: String, val x: Float, val y: Float, val paint: Paint)
