@@ -3,5 +3,6 @@
     <declare-styleable name="ChordProTextView">
         <attr name="chordColor" format="color" />
         <attr name="hideChords" format="boolean" />
+        <attr name="centerChordsOverNextCharacter" format="boolean" />
     </declare-styleable>
 </resources>

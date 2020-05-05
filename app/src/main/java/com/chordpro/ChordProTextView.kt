@@ -6,15 +6,19 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.util.AttributeSet
 import android.util.Log
-import androidx.core.content.ContextCompat
+import kotlin.math.max
+import kotlin.math.min
 
 // Inspiration: https://stackoverflow.com/questions/4342927/how-to-correctly-draw-text-in-an-extended-class-for-textview
 class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
     var hideChords = false
+    var centerChordsOverNextCharacter = false
 
     private val chordPaint = Paint()
     private val textPaint = Paint()
     private val textBounds = Rect()
+
+    @Suppress("RegExpRedundantEscape")
     private val hideChordsRegex = Regex("\\[(?:[^\\]])*\\]*\\s*")
 
     constructor(context: Context?) : super(context) {
@@ -35,6 +39,7 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         val array = context.obtainStyledAttributes(attrs, R.styleable.ChordProTextView)
         chordPaint.color = array.getColor(R.styleable.ChordProTextView_chordColor, currentTextColor)
         hideChords = array.getBoolean(R.styleable.ChordProTextView_hideChords, false)
+        centerChordsOverNextCharacter = array.getBoolean(R.styleable.ChordProTextView_centerChordsOverNextCharacter, false)
         array.recycle()
     }
 
@@ -99,7 +104,6 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
                     }
 
                     val shouldPostfixSpace = !drawingModel.nextIsChord && words.count() - 2 == i && words.last().isEmpty()
-
                     val previousWordIsEmptyJustAfterAChord = i == 1 && words[0].isEmpty()
                     val shouldPrefixSpace = !drawingModel.nextIsChord && drawingModel.x > 0 && (drawModels.lastOrNull()?.isChord == false || previousWordIsEmptyJustAfterAChord)
                     var wordWithSpaces = "${if (shouldPrefixSpace) " " else ""}$word${if (shouldPostfixSpace) " " else ""}"
@@ -122,7 +126,22 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
             drawingModel.nextIsChord = !drawingModel.nextIsChord
         }
 
+        if (centerChordsOverNextCharacter) {
+            adjustChordPositions(drawModels)
+        }
+
         return drawModels
+    }
+
+    private fun adjustChordPositions(drawModels: List<DrawModel>) {
+        var previousDrawModel: DrawModel? = null
+        for (drawModel in drawModels.reversed()) {
+            if (previousDrawModel != null && drawModel.isChord && !previousDrawModel.text.startsWith(" ")) {
+                val letterWidth = textWidth(previousDrawModel.text.first().toString(), 0)
+                drawModel.x = max(0f, drawModel.x - (drawModel.width - letterWidth) / 2f)
+            }
+            previousDrawModel = drawModel
+        }
     }
 
     private fun calcSpaceWidth(): Int {
@@ -169,13 +188,12 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         val y = drawingModel.y
         val lineHeight = drawingModel.lineHeight
 
+        val textWidth = textWidth(word, drawingModel.spaceWidth)
         if (drawingModel.nextIsChord) {
-            drawModels.add(DrawModel(true, word, x, y + lineHeight * 0.5f - lineHeight, chordPaint))
+            drawModels.add(DrawModel(true, word, x, y + lineHeight * 0.5f - lineHeight, chordPaint, textWidth))
         } else {
-            val textRight = textWidth(word, drawingModel.spaceWidth)
-
-            drawModels.add(DrawModel(false, word, x, y + lineHeight * 0.5f, textPaint))
-            drawingModel.x += textRight
+            drawModels.add(DrawModel(false, word, x, y + lineHeight * 0.5f, textPaint, textWidth))
+            drawingModel.x += textWidth
         }
     }
 
@@ -190,6 +208,6 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         return textBounds.width() + extraSpaceWidth + textBounds.left
     }
 
-    data class DrawModel(val isChord: Boolean, val text: String, val x: Float, val y: Float, val paint: Paint)
+    data class DrawModel(val isChord: Boolean, val text: String, var x: Float, val y: Float, val paint: Paint, val width: Int)
     data class BuildingDrawModel(var nextIsChord: Boolean, var x: Float, var y: Float, val lineHeight: Float, val spaceWidth: Int)
 }
