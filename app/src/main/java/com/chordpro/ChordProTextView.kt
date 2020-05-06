@@ -7,7 +7,6 @@ import android.graphics.Rect
 import android.util.AttributeSet
 import android.util.Log
 import kotlin.math.max
-import kotlin.math.min
 
 // Inspiration: https://stackoverflow.com/questions/4342927/how-to-correctly-draw-text-in-an-extended-class-for-textview
 class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
@@ -76,12 +75,11 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
     }
 
     // TODO remaining problems:
-    // Center cords over the next letter
     // Font size scaling for any size
     // TextView contentsize matches its real size
-    // support lines without chords
     private fun buildDrawModel(): List<DrawModel> {
-        val drawModels = mutableListOf<DrawModel>()
+        val drawModelsByLine = mutableListOf<MutableList<DrawModel>>()
+        drawModelsByLine.add(mutableListOf())
 
         val startsWithChord = text.startsWith("[")
         val textParts = text.split("[", "]")
@@ -94,7 +92,7 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
 
             for (textPartWithoutNewLines in textPart.split("\n")) {
                 if (hasPassedNewLine) {
-                    moveToNextLine(drawingModel)
+                    moveToNextLine(drawingModel, drawModelsByLine)
                 }
 
                 val words = textPartWithoutNewLines.split(" ")
@@ -105,19 +103,20 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
 
                     val shouldPostfixSpace = !drawingModel.nextIsChord && words.count() - 2 == i && words.last().isEmpty()
                     val previousWordIsEmptyJustAfterAChord = i == 1 && words[0].isEmpty()
-                    val shouldPrefixSpace = !drawingModel.nextIsChord && drawingModel.x > 0 && (drawModels.lastOrNull()?.isChord == false || previousWordIsEmptyJustAfterAChord)
+                    val shouldPrefixSpace =
+                        !drawingModel.nextIsChord && drawingModel.x > 0 && (drawModelsByLine.lastOrNull()?.lastOrNull()?.isChord == false || previousWordIsEmptyJustAfterAChord)
                     var wordWithSpaces = "${if (shouldPrefixSpace) " " else ""}$word${if (shouldPostfixSpace) " " else ""}"
 
                     val shouldWrapToNextLine = textWidth(wordWithSpaces.trimEnd(), drawingModel.spaceWidth) + drawingModel.x > super.getWidth()
                     if (shouldWrapToNextLine) {
-                        moveToNextLine(drawingModel)
-                        ensureWordsOrCordsIsNotBrokenUp(drawingModel, drawModels)
+                        moveToNextLine(drawingModel, drawModelsByLine)
+                        ensureWordsOrCordsIsNotBrokenUp(drawingModel, drawModelsByLine)
                         wordWithSpaces = wordWithSpaces.trimStart()
                     }
 
                     Log.d("ChordPro", "Build: \"${wordWithSpaces}\"")
 
-                    drawText(drawModels, wordWithSpaces, drawingModel)
+                    drawText(drawModelsByLine.last(), wordWithSpaces, drawingModel)
                 }
 
                 hasPassedNewLine = true
@@ -127,20 +126,23 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         }
 
         if (centerChordsOverNextCharacter) {
-            adjustChordPositions(drawModels)
+            adjustChordPositions(drawModelsByLine)
         }
 
-        return drawModels
+        return adjustLineHeights(drawModelsByLine, drawingModel.lineHeight)
     }
 
-    private fun adjustChordPositions(drawModels: List<DrawModel>) {
+    private fun adjustChordPositions(drawModelsByLine: List<List<DrawModel>>) {
         var previousDrawModel: DrawModel? = null
-        for (drawModel in drawModels.reversed()) {
-            if (previousDrawModel != null && drawModel.isChord && !previousDrawModel.text.startsWith(" ")) {
-                val letterWidth = textWidth(previousDrawModel.text.first().toString(), 0)
-                drawModel.x = max(0f, drawModel.x - (drawModel.width - letterWidth) / 2f)
+
+        for (drawModelLine in drawModelsByLine.reversed()) {
+            for (drawModel in drawModelLine.reversed()) {
+                if (previousDrawModel != null && drawModel.isChord && !previousDrawModel.text.startsWith(" ")) {
+                    val letterWidth = textWidth(previousDrawModel.text.first().toString(), 0)
+                    drawModel.x = max(0f, drawModel.x - (drawModel.width - letterWidth) / 2f)
+                }
+                previousDrawModel = drawModel
             }
-            previousDrawModel = drawModel
         }
     }
 
@@ -148,24 +150,27 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         return textWidth("x x", 0) - textWidth("x", 0) * 2 // leading/trailing spaces is not take into account https://stackoverflow.com/a/10729081/860488
     }
 
-    private fun ensureWordsOrCordsIsNotBrokenUp(drawingModel: BuildingDrawModel, drawModels: MutableList<DrawModel>) {
-        if (!drawingModel.nextIsChord && drawModels.last().isChord) {
-            val elementsToMoveToNextLine = drawModels.reversed().takeWhile { it.isChord || !it.text.endsWith(" ") }.reversed()
+    private fun ensureWordsOrCordsIsNotBrokenUp(drawingModel: BuildingDrawModel, drawModelsByLine: MutableList<MutableList<DrawModel>>) {
+        val lastLineDrawModel = drawModelsByLine.last()
+        val previousLineDrawModel = drawModelsByLine.dropLast(1).last()
+
+        if (!drawingModel.nextIsChord && previousLineDrawModel.last().isChord) {
+            val elementsToMoveToNextLine = previousLineDrawModel.reversed().takeWhile { it.isChord || !it.text.endsWith(" ") }.reversed()
             val lastIndex = elementsToMoveToNextLine.count() - 1
 
             for ((i, drawModel) in elementsToMoveToNextLine.withIndex()) {
-                drawModels.remove(drawModel)
+                previousLineDrawModel.remove(drawModel)
                 drawingModel.nextIsChord = drawModel.isChord
                 val text = if (lastIndex == i) drawModel.text.trimStart() else drawModel.text
-                drawText(drawModels, text, drawingModel)
+                drawText(lastLineDrawModel, text, drawingModel)
             }
 
             drawingModel.nextIsChord = false
 
-        } else if (drawingModel.nextIsChord && !drawModels.last().isChord && !drawModels.last().text.endsWith(" ")) {
+        } else if (drawingModel.nextIsChord && !previousLineDrawModel.last().isChord && !previousLineDrawModel.last().text.endsWith(" ")) {
 
             var lastElement: DrawModel? = null
-            val elementsToMoveToNextLine = drawModels.reversed().takeWhile {
+            val elementsToMoveToNextLine = previousLineDrawModel.reversed().takeWhile {
                 val moveToNextLine = it.isChord || (!it.text.endsWith(" ") && !(lastElement?.text?.startsWith(" ") ?: false))
                 lastElement = it
                 moveToNextLine
@@ -173,10 +178,10 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
             val lastIndex = elementsToMoveToNextLine.count() - 1
 
             for ((i, drawModel) in elementsToMoveToNextLine.withIndex()) {
-                drawModels.remove(drawModel)
+                previousLineDrawModel.remove(drawModel)
                 drawingModel.nextIsChord = drawModel.isChord
                 val text = if (lastIndex == i) drawModel.text.trimStart() else drawModel.text
-                drawText(drawModels, text, drawingModel)
+                drawText(lastLineDrawModel, text, drawingModel)
             }
 
             drawingModel.nextIsChord = true
@@ -197,9 +202,10 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         }
     }
 
-    private fun moveToNextLine(drawingModel: BuildingDrawModel) {
+    private fun moveToNextLine(drawingModel: BuildingDrawModel, drawModels: MutableList<MutableList<DrawModel>>) {
         drawingModel.y += drawingModel.lineHeight * 2
         drawingModel.x = 0f
+        drawModels.add(mutableListOf())
     }
 
     private fun textWidth(text: String, spaceWidth: Int): Int {
@@ -208,6 +214,23 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         return textBounds.width() + extraSpaceWidth + textBounds.left
     }
 
-    data class DrawModel(val isChord: Boolean, val text: String, var x: Float, val y: Float, val paint: Paint, val width: Int)
+    private fun adjustLineHeights(drawModelsByLine: List<List<DrawModel>>, lineHeight: Float): List<DrawModel> {
+        var lineHeightToSubtract = 0f
+        for (drawModelsLine in drawModelsByLine) {
+            if (drawModelsLine.isEmpty() || drawModelsLine.all { !it.isChord }) {
+                lineHeightToSubtract += lineHeight
+            }
+
+            if (lineHeightToSubtract > 0) {
+                for (drawModel in drawModelsLine) {
+                    drawModel.y -= lineHeightToSubtract
+                }
+            }
+        }
+
+        return drawModelsByLine.flatten()
+    }
+
+    data class DrawModel(val isChord: Boolean, val text: String, var x: Float, var y: Float, val paint: Paint, val width: Int)
     data class BuildingDrawModel(var nextIsChord: Boolean, var x: Float, var y: Float, val lineHeight: Float, val spaceWidth: Int)
 }
