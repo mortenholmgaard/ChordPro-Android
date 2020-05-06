@@ -57,6 +57,17 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         textPaint.isAntiAlias = true
     }
 
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        val widthSize = MeasureSpec.getSize(widthMeasureSpec)
+
+        if (!hideChords) {
+            setLineSpacing(0f, 2f)
+            val lineHeight = 28.dpToPx // TODO lineHeight
+            height = buildDrawModel(widthSize).last().y.toInt() + lineHeight
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         if (hideChords) {
             setLineSpacing(0f, 1f)
@@ -76,15 +87,14 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
 
     // TODO remaining problems:
     // Font size scaling for any size
-    // TextView contentsize matches its real size
-    private fun buildDrawModel(): List<DrawModel> {
+    private fun buildDrawModel(viewWidth: Int = super.getWidth()): List<DrawModel> {
         val drawModelsByLine = mutableListOf<MutableList<DrawModel>>()
         drawModelsByLine.add(mutableListOf())
 
         val startsWithChord = text.startsWith("[")
         val textParts = text.split("[", "]")
 
-        val lineHeight = 28f.dpToPx
+        val lineHeight = 28f.dpToPx // TODO lineHeight
         val drawingModel = BuildingDrawModel(startsWithChord, 0f, lineHeight + 5.dpToPx, lineHeight, calcSpaceWidth())
 
         for (textPart in textParts) {
@@ -107,7 +117,7 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
                         !drawingModel.nextIsChord && drawingModel.x > 0 && (drawModelsByLine.lastOrNull()?.lastOrNull()?.isChord == false || previousWordIsEmptyJustAfterAChord)
                     var wordWithSpaces = "${if (shouldPrefixSpace) " " else ""}$word${if (shouldPostfixSpace) " " else ""}"
 
-                    val shouldWrapToNextLine = textWidth(wordWithSpaces.trimEnd(), drawingModel.spaceWidth) + drawingModel.x > super.getWidth()
+                    val shouldWrapToNextLine = textWidth(wordWithSpaces.trimEnd(), drawingModel.spaceWidth) + drawingModel.x > viewWidth
                     if (shouldWrapToNextLine) {
                         moveToNextLine(drawingModel, drawModelsByLine)
                         ensureWordsOrCordsIsNotBrokenUp(drawingModel, drawModelsByLine)
