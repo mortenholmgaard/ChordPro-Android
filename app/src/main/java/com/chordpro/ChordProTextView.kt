@@ -64,7 +64,7 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         val widthSize = MeasureSpec.getSize(widthMeasureSpec)
 
         if (!hideChords) {
-            height = (buildDrawModel(widthSize).last().y + calcLineHeight() - 20.dpToPx).toInt()
+            height = (buildDrawModel(widthSize).last().y + calcLineHeight() - textSize + 3.dpToPx).toInt()
         }
     }
 
