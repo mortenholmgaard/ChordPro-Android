@@ -21,17 +21,17 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
     private val hideChordsRegex = Regex("\\[(?:[^\\]])*\\]*\\s*")
 
     constructor(context: Context?) : super(context) {
-        setupPaint()
+        setup()
     }
 
     constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
         setupAttributes(context, attrs)
-        setupPaint()
+        setup()
     }
 
     constructor(context: Context, attrs: AttributeSet?, defStyle: Int) : super(context, attrs, defStyle) {
         setupAttributes(context, attrs)
-        setupPaint()
+        setup()
     }
 
     private fun setupAttributes(context: Context, attrs: AttributeSet?) {
@@ -42,19 +42,21 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         array.recycle()
     }
 
+    private fun setup() {
+        chordPaint.isAntiAlias = true
+        textPaint.isAntiAlias = true
+    }
+
+    // Call every time it is needed to ensure using the current textSize
     private fun setupPaint() {
-        chordPaint.strokeWidth = textSize
         chordPaint.textSize = textSize
         chordPaint.flags = paintFlags
         chordPaint.typeface = typeface
-        chordPaint.isAntiAlias = true
 
         textPaint.color = currentTextColor
-        textPaint.strokeWidth = textSize
         textPaint.textSize = textSize
         textPaint.flags = paintFlags
         textPaint.typeface = typeface
-        textPaint.isAntiAlias = true
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -62,31 +64,31 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         val widthSize = MeasureSpec.getSize(widthMeasureSpec)
 
         if (!hideChords) {
-            setLineSpacing(0f, 2f)
-            val lineHeight = 28.dpToPx // TODO lineHeight
-            height = buildDrawModel(widthSize).last().y.toInt() + lineHeight
+            height = (buildDrawModel(widthSize).last().y + calcLineHeight() - 20.dpToPx).toInt()
         }
     }
 
     override fun onDraw(canvas: Canvas) {
         if (hideChords) {
-            setLineSpacing(0f, 1f)
             val text = text
             setText(text.replace(hideChordsRegex, ""))
             super.onDraw(canvas)
             setText(text)
         } else {
-            setLineSpacing(0f, 2f)
+            setupPaint()
 
             for (drawModel in buildDrawModel()) {
-                Log.d("ChordPro", "Draw: \"${drawModel.text}\"")
-                canvas.drawText(drawModel.text, drawModel.x, drawModel.y, drawModel.paint)
+//                Log.d("ChordPro", "Draw: \"${drawModel.text}\"")
+                canvas.drawText(drawModel.text, drawModel.x, drawModel.y, if (drawModel.isChord) chordPaint else textPaint)
             }
         }
     }
 
-    // TODO remaining problems:
-    // Font size scaling for any size
+    private fun calcLineHeight(): Float {
+        setupPaint()
+        return textPaint.descent() - textPaint.ascent()
+    }
+
     private fun buildDrawModel(viewWidth: Int = super.getWidth()): List<DrawModel> {
         val drawModelsByLine = mutableListOf<MutableList<DrawModel>>()
         drawModelsByLine.add(mutableListOf())
@@ -94,7 +96,7 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         val startsWithChord = text.startsWith("[")
         val textParts = text.split("[", "]")
 
-        val lineHeight = 28f.dpToPx // TODO lineHeight
+        val lineHeight = calcLineHeight()
         val drawingModel = BuildingDrawModel(startsWithChord, 0f, lineHeight + 5.dpToPx, lineHeight, calcSpaceWidth())
 
         for (textPart in textParts) {
@@ -124,7 +126,7 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
                         wordWithSpaces = wordWithSpaces.trimStart()
                     }
 
-                    Log.d("ChordPro", "Build: \"${wordWithSpaces}\"")
+//                    Log.d("ChordPro", "Build: \"${wordWithSpaces}\"")
 
                     drawText(drawModelsByLine.last(), wordWithSpaces, drawingModel)
                 }
@@ -205,9 +207,9 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
 
         val textWidth = textWidth(word, drawingModel.spaceWidth)
         if (drawingModel.nextIsChord) {
-            drawModels.add(DrawModel(true, word, x, y + lineHeight * 0.5f - lineHeight, chordPaint, textWidth))
+            drawModels.add(DrawModel(true, word, x, y + lineHeight * 0.5f - lineHeight, textWidth))
         } else {
-            drawModels.add(DrawModel(false, word, x, y + lineHeight * 0.5f, textPaint, textWidth))
+            drawModels.add(DrawModel(false, word, x, y + lineHeight * 0.5f, textWidth))
             drawingModel.x += textWidth
         }
     }
@@ -241,6 +243,6 @@ class ChordProTextView : androidx.appcompat.widget.AppCompatTextView {
         return drawModelsByLine.flatten()
     }
 
-    data class DrawModel(val isChord: Boolean, val text: String, var x: Float, var y: Float, val paint: Paint, val width: Int)
+    data class DrawModel(val isChord: Boolean, val text: String, var x: Float, var y: Float, val width: Int)
     data class BuildingDrawModel(var nextIsChord: Boolean, var x: Float, var y: Float, val lineHeight: Float, val spaceWidth: Int)
 }

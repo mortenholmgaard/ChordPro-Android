@@ -1,33 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.chordpro.ScrollViewWithZoom xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/scrollView"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/contentView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="#ccc"
         android:paddingStart="10dp"
         android:paddingEnd="10dp"
-        tools:context=".FirstFragment">
+        tools:context=".ChordsFragment">
 
         <com.chordpro.ChordProTextView
-            android:id="@+id/outlinedTextView"
+            android:id="@+id/chordProTextView"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
+            android:background="@color/white"
             android:text="When you're [Em] down and [B7] troubled and you [Em] need some [B7] lovin' [Em] care\nAnd [Am] nothing, [D] nothing is going [G] right\n[F#m]Close your eyes and [B7]think of me and [Em]soon I [B7]will be [Em]there\nTo [Am]brighten up [D]even your darkest [Am]nights [Em]\n\nYou just call out my name, and you know, wherever I am,\nI come running to see you again\n\nYou just c[G]all out my name, and you kn[C]ow, wherever I am,\nI come r[G]unning to see you [Am]aga[D7]in\n[G] Winter spring summer or [G7] fall [C] all you got to do is [Am] call\nAnd I'll [C] be there, yes I [Am] will"
             android:textColor="#000"
-            app:chordColor="#777"
-            app:centerChordsOverNextCharacter="true"
             android:textSize="24sp"
+            app:centerChordsOverNextCharacter="true"
+            app:chordColor="#777"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"
             tools:ignore="HardcodedText" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-</ScrollView>
+</com.chordpro.ScrollViewWithZoom>
